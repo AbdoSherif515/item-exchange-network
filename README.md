@@ -1,73 +1,102 @@
-# Welcome to your Lovable project
 
-## Project info
+# Distributed ItemExchange Microservices Architecture
 
-**URL**: https://lovable.dev/projects/ee8b38f3-fc5b-4189-9b82-d970a19749a7
+This project is a distributed microservices architecture for an ItemExchange marketplace, using PostgreSQL Citus for distributed database management and Docker Compose for easy deployment.
 
-## How can I edit this code?
+## Architecture Overview
 
-There are several ways of editing your application.
+The system is split into the following components:
 
-**Use Lovable**
+1. **Load Balancer**: API Gateway that routes requests to the appropriate microservice
+2. **Account Service**: Handles user authentication and account management
+3. **Product Service**: Manages product listings and searches
+4. **Transaction Service**: Processes purchases and maintains transaction history
+5. **PostgreSQL Citus Cluster**: Distributed database with a master node, 3 worker nodes for sharding, and 3 replica nodes
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/ee8b38f3-fc5b-4189-9b82-d970a19749a7) and start prompting.
+## Getting Started
 
-Changes made via Lovable will be committed automatically to this repo.
+### Prerequisites
 
-**Use your preferred IDE**
+- Docker and Docker Compose installed on your system
+- Git (to clone the repository)
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### Installation and Setup
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+1. Clone the repository:
+   ```
+   git clone <repository-url>
+   cd itemexchange
+   ```
 
-Follow these steps:
+2. Start the services:
+   ```
+   docker-compose up -d
+   ```
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+3. The application will be available at:
+   - API Gateway/Load Balancer: http://localhost:5000
+   - Account Service: http://localhost:5001
+   - Product Service: http://localhost:5002
+   - Transaction Service: http://localhost:5003
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+## Database Architecture
 
-# Step 3: Install the necessary dependencies.
-npm i
+The system uses PostgreSQL Citus, a distributed database extension for PostgreSQL that shards and replicates your data across multiple nodes:
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
+- **Master Node**: Coordinates queries and maintains metadata
+- **Worker Nodes (3)**: Store sharded data based on distribution keys
+- **Replica Nodes (3)**: Provide read replicas of worker nodes for high availability
 
-**Edit a file directly in GitHub**
+Tables are distributed as follows:
+- `users`: Distributed by `id`
+- `items`: Distributed by `seller_id`
+- `transactions`: Distributed by `seller_id`
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## API Endpoints
 
-**Use GitHub Codespaces**
+### Account Service (Port 5001)
+- `POST /api/auth/register`: Register a new user
+- `POST /api/auth/login`: Login a user
+- `GET /api/users/profile`: Get user profile
+- `POST /api/users/deposit`: Deposit funds to user account
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+### Product Service (Port 5002)
+- `GET /api/items`: Get all items
+- `GET /api/items/:id`: Get single item
+- `POST /api/items`: Create new item
+- `PUT /api/items/:id`: Update an item
+- `DELETE /api/items/:id`: Delete an item
+- `GET /api/items/search/:query`: Search items
+- `GET /api/items/user/:userId`: Get user's items
 
-## What technologies are used for this project?
+### Transaction Service (Port 5003)
+- `GET /api/transactions/purchases`: Get user's purchases
+- `GET /api/transactions/sales`: Get user's sales
+- `POST /api/transactions/purchase/:id`: Purchase an item
+- `GET /api/transactions/reports`: Get transaction reports
 
-This project is built with:
+## Scaling
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+This architecture is designed to scale horizontally:
 
-## How can I deploy this project?
+1. **Application Layer**: Each microservice can be scaled independently by adding more containers
+2. **Database Layer**: Additional worker nodes can be added to the Citus cluster for more sharding
+3. **Read Replicas**: More read replicas can be added for read-heavy workloads
 
-Simply open [Lovable](https://lovable.dev/projects/ee8b38f3-fc5b-4189-9b82-d970a19749a7) and click on Share -> Publish.
+## Monitoring and Management
 
-## Can I connect a custom domain to my Lovable project?
+Health check endpoints are available for each service at:
+- `/health`
 
-Yes, you can!
+## Security
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+- All authenticated endpoints require a JWT token in the `x-auth-token` header
+- Passwords are hashed using bcrypt
+- Database credentials are managed via environment variables
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+## Future Enhancements
+
+- Add service discovery with Consul or etcd
+- Implement message queues for asynchronous processing
+- Add monitoring with Prometheus and Grafana
+- Implement rate limiting and circuit breakers
