@@ -1,19 +1,14 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useAuth } from "./AuthContext";
-import { useItems, Item } from "./ItemsContext";
+import { useItems } from "./ItemsContext";
 
-// Transaction type
+// Transaction type matching database schema
 export interface Transaction {
-  id: string;
-  itemId: string;
-  itemName: string;
-  sellerId: string;
-  sellerName: string;
-  buyerId: string;
-  buyerName: string;
-  price: number;
-  date: string;
+  buyer_id: number;
+  product_id: number;
+  date_time: number;
+  amount: number;
 }
 
 // Transactions context type
@@ -21,7 +16,7 @@ interface TransactionsContextType {
   transactions: Transaction[];
   myPurchases: Transaction[];
   mySales: Transaction[];
-  purchaseItem: (itemId: string) => boolean;
+  purchaseItem: (itemId: number) => boolean;
   getTotalSales: () => number;
   getTotalPurchases: () => number;
 }
@@ -44,22 +39,23 @@ export const TransactionsProvider: React.FC<{ children: React.ReactNode }> = ({ 
   }, []);
 
   // Filter transactions for current user
-  const myPurchases = transactions.filter(t => user && t.buyerId === user.id);
-  const mySales = transactions.filter(t => user && t.sellerId === user.id);
+  const myPurchases = transactions.filter(t => user && t.buyer_id === user.account_id);
+  const mySales = transactions.filter(t => {
+    const item = items.find(i => i.product_id === t.product_id);
+    return user && item && item.creator_id === user.account_id;
+  });
 
   // Purchase item function
-  const purchaseItem = (itemId: string): boolean => {
+  const purchaseItem = (itemId: number): boolean => {
     if (!user) return false;
     
-    const item = items.find(i => i.id === itemId);
+    const item = items.find(i => i.product_id === itemId);
     
-    // Validate item exists and is not owned by the user
-    if (!item || item.sellerId === user.id) {
+    if (!item || item.creator_id === user.account_id || !item.on_sale) {
       console.error("Item not available for purchase");
       return false;
     }
     
-    // Check if user has enough balance
     if (user.balance < item.price) {
       console.error("Insufficient funds");
       return false;
@@ -67,15 +63,10 @@ export const TransactionsProvider: React.FC<{ children: React.ReactNode }> = ({ 
     
     // Create transaction
     const transaction: Transaction = {
-      id: `${Date.now()}`,
-      itemId: item.id,
-      itemName: item.name,
-      sellerId: item.sellerId,
-      sellerName: item.sellerName,
-      buyerId: user.id,
-      buyerName: user.username,
-      price: item.price,
-      date: new Date().toISOString()
+      buyer_id: user.account_id,
+      product_id: item.product_id,
+      date_time: Date.now(),
+      amount: item.price
     };
     
     // Update transactions
@@ -86,19 +77,17 @@ export const TransactionsProvider: React.FC<{ children: React.ReactNode }> = ({ 
     // Update user balance (deduct purchase amount)
     depositCash(-item.price);
     
-    // In a real app, we would update the seller's balance here through an API call
-    
     return true;
   };
 
   // Get total sales amount
   const getTotalSales = (): number => {
-    return mySales.reduce((sum, transaction) => sum + transaction.price, 0);
+    return mySales.reduce((sum, transaction) => sum + transaction.amount, 0);
   };
 
   // Get total purchases amount
   const getTotalPurchases = (): number => {
-    return myPurchases.reduce((sum, transaction) => sum + transaction.price, 0);
+    return myPurchases.reduce((sum, transaction) => sum + transaction.amount, 0);
   };
 
   const value = {

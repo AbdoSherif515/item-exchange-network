@@ -2,17 +2,14 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useAuth } from "./AuthContext";
 
-// Item type
+// Item type matching database schema
 export interface Item {
-  id: string;
+  product_id: number;
   name: string;
   description: string;
   price: number;
-  sellerId: string;
-  sellerName: string;
-  image: string;
-  createdAt: string;
-  updatedAt: string;
+  on_sale: boolean;
+  creator_id: number;
 }
 
 // Items context type
@@ -21,63 +18,51 @@ interface ItemsContextType {
   myItems: Item[];
   purchasedItems: Item[];
   soldItems: Item[];
-  addItem: (item: Omit<Item, "id" | "sellerId" | "sellerName" | "createdAt" | "updatedAt">) => void;
-  updateItem: (id: string, updates: Partial<Item>) => void;
-  removeItem: (id: string) => void;
-  purchaseItem: (id: string) => boolean;
+  addItem: (item: Omit<Item, "product_id" | "creator_id">) => void;
+  updateItem: (id: number, updates: Partial<Item>) => void;
+  removeItem: (id: number) => void;
+  purchaseItem: (id: number) => boolean;
 }
 
-// Sample items
+// Sample items matching schema
 const DEMO_ITEMS: Item[] = [
   {
-    id: "1",
+    product_id: 1,
     name: "Smartphone",
     description: "Latest model smartphone with high-end features",
     price: 500,
-    sellerId: "2",
-    sellerName: "user2",
-    image: "https://placehold.co/300x200",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
+    on_sale: true,
+    creator_id: 2
   },
   {
-    id: "2",
+    product_id: 2,
     name: "Laptop",
     description: "Professional laptop for work and gaming",
     price: 1200,
-    sellerId: "2",
-    sellerName: "user2",
-    image: "https://placehold.co/300x200",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
+    on_sale: true,
+    creator_id: 2
   },
   {
-    id: "3",
+    product_id: 3,
     name: "Headphones",
     description: "Noise-cancelling wireless headphones",
     price: 150,
-    sellerId: "1",
-    sellerName: "demo",
-    image: "https://placehold.co/300x200",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
+    on_sale: true,
+    creator_id: 1
   }
 ];
 
 // Create context
 const ItemsContext = createContext<ItemsContextType | undefined>(undefined);
 
-// Transactions record for purchases
+// Transactions record type matching schema
 interface Transaction {
-  id: string;
-  itemId: string;
-  sellerId: string;
-  buyerId: string;
-  price: number;
-  date: string;
+  buyer_id: number;
+  product_id: number;
+  date_time: number;
 }
 
-const ItemsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const ItemsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
   const [items, setItems] = useState<Item[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -100,29 +85,27 @@ const ItemsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   }, []);
 
   // Filter items by current user
-  const myItems = items.filter(item => user && item.sellerId === user.id);
+  const myItems = items.filter(item => user && item.creator_id === user.account_id);
   
   // Get purchased items
   const purchasedItems = items.filter(item => {
-    return transactions.some(t => t.itemId === item.id && t.buyerId === user?.id);
+    return transactions.some(t => t.product_id === item.product_id && t.buyer_id === user?.account_id);
   });
   
   // Get sold items
   const soldItems = items.filter(item => {
-    return transactions.some(t => t.itemId === item.id && t.sellerId === user?.id);
+    return transactions.some(t => t.product_id === item.product_id && item.creator_id === user?.account_id);
   });
 
   // Add new item
-  const addItem = (item: Omit<Item, "id" | "sellerId" | "sellerName" | "createdAt" | "updatedAt">) => {
+  const addItem = (item: Omit<Item, "product_id" | "creator_id">) => {
     if (!user) return;
     
     const newItem: Item = {
       ...item,
-      id: `${Date.now()}`,
-      sellerId: user.id,
-      sellerName: user.username,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      product_id: Date.now(),
+      creator_id: user.account_id,
+      on_sale: true
     };
     
     const updatedItems = [...items, newItem];
@@ -131,14 +114,10 @@ const ItemsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   };
 
   // Update item
-  const updateItem = (id: string, updates: Partial<Item>) => {
+  const updateItem = (id: number, updates: Partial<Item>) => {
     const updatedItems = items.map(item => {
-      if (item.id === id && user && item.sellerId === user.id) {
-        return { 
-          ...item, 
-          ...updates,
-          updatedAt: new Date().toISOString()
-        };
+      if (item.product_id === id && user && item.creator_id === user.account_id) {
+        return { ...item, ...updates };
       }
       return item;
     });
@@ -148,11 +127,10 @@ const ItemsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   };
 
   // Remove item
-  const removeItem = (id: string) => {
+  const removeItem = (id: number) => {
     const updatedItems = items.filter(item => {
-      // Only allow deletion if user owns the item
-      if (item.id === id) {
-        return user && item.sellerId !== user.id;
+      if (item.product_id === id) {
+        return user && item.creator_id !== user.account_id;
       }
       return true;
     });
@@ -162,17 +140,15 @@ const ItemsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   };
 
   // Purchase item
-  const purchaseItem = (id: string): boolean => {
+  const purchaseItem = (id: number): boolean => {
     if (!user) return false;
     
-    const itemToPurchase = items.find(item => item.id === id);
+    const itemToPurchase = items.find(item => item.product_id === id);
     
-    // Check if item exists and is not owned by user
-    if (!itemToPurchase || itemToPurchase.sellerId === user.id) {
+    if (!itemToPurchase || itemToPurchase.creator_id === user.account_id || !itemToPurchase.on_sale) {
       return false;
     }
     
-    // This function will be called from TransactionsContext
     return true;
   };
 
@@ -190,12 +166,10 @@ const ItemsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   return <ItemsContext.Provider value={value}>{children}</ItemsContext.Provider>;
 };
 
-const useItems = () => {
+export const useItems = () => {
   const context = useContext(ItemsContext);
   if (context === undefined) {
     throw new Error("useItems must be used within an ItemsProvider");
   }
   return context;
 };
-
-export { ItemsProvider, useItems };

@@ -1,10 +1,9 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 
-// User type
+// User type matching database schema
 export interface User {
-  id: string;
-  username: string;
+  account_id: number;
   email: string;
   balance: number;
 }
@@ -14,26 +13,23 @@ interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<boolean>;
-  register: (username: string, email: string, password: string) => Promise<boolean>;
+  register: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
   depositCash: (amount: number) => void;
 }
 
-// Create context
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Sample users for demo
+// Sample users for demo (matching new schema)
 const DEMO_USERS = [
   {
-    id: "1",
-    username: "demo",
+    account_id: 1,
     email: "demo@example.com",
     password: "password",
     balance: 1000,
   },
   {
-    id: "2",
-    username: "user2",
+    account_id: 2,
     email: "user2@example.com",
     password: "password",
     balance: 1500,
@@ -55,7 +51,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Login function
   const login = async (email: string, password: string): Promise<boolean> => {
-    // Simulate API request
     const foundUser = DEMO_USERS.find(
       (u) => u.email === email && u.password === password
     );
@@ -71,18 +66,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   // Register function
-  const register = async (username: string, email: string, password: string): Promise<boolean> => {
-    // Check if user already exists
+  const register = async (email: string, password: string): Promise<boolean> => {
     const userExists = DEMO_USERS.some((u) => u.email === email);
     
     if (userExists) {
       return false;
     }
 
-    // Create new user (in a real app, this would be a server call)
     const newUser = {
-      id: `${DEMO_USERS.length + 1}`,
-      username,
+      account_id: DEMO_USERS.length + 1,
       email,
       balance: 100, // Starting balance
     };
@@ -90,7 +82,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Add to demo users (simulating database)
     DEMO_USERS.push({ ...newUser, password });
     
-    // Log in the user
     setUser(newUser);
     setIsAuthenticated(true);
     localStorage.setItem("user", JSON.stringify(newUser));
@@ -115,8 +106,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(updatedUser);
       localStorage.setItem("user", JSON.stringify(updatedUser));
       
-      // Update the demo user data as well
-      const userIndex = DEMO_USERS.findIndex(u => u.id === user.id);
+      const userIndex = DEMO_USERS.findIndex(u => u.account_id === user.account_id);
       if (userIndex !== -1) {
         DEMO_USERS[userIndex].balance = updatedUser.balance;
       }
