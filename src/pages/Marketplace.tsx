@@ -18,7 +18,8 @@ const Marketplace: React.FC = () => {
 
   // Filter out items that belong to the current user and filter by search term
   const availableItems = items.filter(item => 
-    user && item.sellerId !== user.id && 
+    user && item.creator_id !== user.account_id && 
+    item.on_sale && 
     (searchTerm === "" || 
      item.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
      item.description.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -50,13 +51,9 @@ const Marketplace: React.FC = () => {
         {availableItems.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {availableItems.map((item) => (
-              <Card key={item.id} className="overflow-hidden">
-                <div className="aspect-[4/3] relative bg-muted">
-                  <img
-                    src={item.image}
-                    alt={item.name}
-                    className="object-cover w-full h-full"
-                  />
+              <Card key={item.product_id} className="overflow-hidden">
+                <div className="aspect-[4/3] relative bg-muted flex items-center justify-center">
+                  <Package className="h-16 w-16 text-muted-foreground" />
                 </div>
                 <CardHeader>
                   <div className="flex justify-between items-start">
@@ -66,13 +63,13 @@ const Marketplace: React.FC = () => {
                 </CardHeader>
                 <CardContent>
                   <p className="text-muted-foreground line-clamp-2">{item.description}</p>
-                  <p className="text-sm mt-2">Seller: {item.sellerName}</p>
+                  <p className="text-sm mt-2">Seller ID: {item.creator_id}</p>
                 </CardContent>
                 <CardFooter>
                   <Button 
                     variant="default" 
                     className="w-full"
-                    onClick={() => navigate(`/marketplace/${item.id}`)}
+                    onClick={() => navigate(`/marketplace/${item.product_id}`)}
                   >
                     <ShoppingCart className="mr-2 h-4 w-4" />
                     View Details

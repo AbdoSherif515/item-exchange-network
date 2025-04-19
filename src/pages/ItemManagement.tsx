@@ -39,20 +39,18 @@ interface ItemFormData {
   name: string;
   description: string;
   price: string;
-  image: string;
 }
 
 const initialFormData: ItemFormData = {
   name: "",
   description: "",
   price: "",
-  image: "https://placehold.co/300x200",
 };
 
 const ItemManagement: React.FC = () => {
   const { myItems, addItem, updateItem, removeItem } = useItems();
   const [formData, setFormData] = useState<ItemFormData>(initialFormData);
-  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [editingItemId, setEditingItemId] = useState<number | null>(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [error, setError] = useState("");
@@ -85,7 +83,7 @@ const ItemManagement: React.FC = () => {
       name: formData.name,
       description: formData.description,
       price: parseFloat(formData.price),
-      image: formData.image,
+      on_sale: true
     });
 
     setFormData(initialFormData);
@@ -100,7 +98,7 @@ const ItemManagement: React.FC = () => {
       name: formData.name,
       description: formData.description,
       price: parseFloat(formData.price),
-      image: formData.image,
+      on_sale: true
     });
 
     setFormData(initialFormData);
@@ -108,18 +106,17 @@ const ItemManagement: React.FC = () => {
     setIsEditDialogOpen(false);
   };
 
-  const handleDeleteItem = (id: string) => {
+  const handleDeleteItem = (id: number) => {
     removeItem(id);
   };
 
-  const startEditItem = (id: string) => {
-    const item = myItems.find((item) => item.id === id);
+  const startEditItem = (id: number) => {
+    const item = myItems.find((item) => item.product_id === id);
     if (item) {
       setFormData({
         name: item.name,
         description: item.description,
         price: item.price.toString(),
-        image: item.image,
       });
       setEditingItemId(id);
       setIsEditDialogOpen(true);
@@ -211,7 +208,7 @@ const ItemManagement: React.FC = () => {
                 </TableHeader>
                 <TableBody>
                   {myItems.map((item) => (
-                    <TableRow key={item.id}>
+                    <TableRow key={item.product_id}>
                       <TableCell className="font-medium">{item.name}</TableCell>
                       <TableCell className="max-w-xs truncate">{item.description}</TableCell>
                       <TableCell>${item.price.toFixed(2)}</TableCell>
@@ -225,11 +222,11 @@ const ItemManagement: React.FC = () => {
                           <DropdownMenuContent align="end">
                             <DropdownMenuLabel>Actions</DropdownMenuLabel>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => startEditItem(item.id)}>
+                            <DropdownMenuItem onClick={() => startEditItem(item.product_id)}>
                               <Pencil className="mr-2 h-4 w-4" />
                               Edit
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleDeleteItem(item.id)}>
+                            <DropdownMenuItem onClick={() => handleDeleteItem(item.product_id)}>
                               <Trash className="mr-2 h-4 w-4" />
                               Delete
                             </DropdownMenuItem>

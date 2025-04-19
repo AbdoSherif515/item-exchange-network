@@ -74,17 +74,6 @@ const AccountSettings: React.FC = () => {
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-2">
-                  <Label htmlFor="username">Username</Label>
-                  <Input
-                    id="username"
-                    value={user?.username || ""}
-                    disabled
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Username cannot be changed
-                  </p>
-                </div>
-                <div className="space-y-2">
                   <Label htmlFor="email">Email Address</Label>
                   <Input
                     id="email"

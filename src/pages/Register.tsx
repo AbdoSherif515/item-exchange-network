@@ -11,7 +11,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import Navbar from "@/components/Navbar";
 
 const Register: React.FC = () => {
-  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -26,7 +25,7 @@ const Register: React.FC = () => {
     setIsLoading(true);
 
     // Basic validation
-    if (!username || !email || !password || !confirmPassword) {
+    if (!email || !password || !confirmPassword) {
       setError("Please fill in all fields");
       setIsLoading(false);
       return;
@@ -45,7 +44,7 @@ const Register: React.FC = () => {
     }
 
     try {
-      const success = await register(username, email, password);
+      const success = await register(email, password);
       if (success) {
         navigate("/dashboard");
       } else {
@@ -79,15 +78,6 @@ const Register: React.FC = () => {
                 </Alert>
               )}
               <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="username">Username</Label>
-                  <Input
-                    id="username"
-                    placeholder="johndoe"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                  />
-                </div>
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
                   <Input

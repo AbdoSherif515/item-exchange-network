@@ -30,7 +30,7 @@ const ItemDetails: React.FC = () => {
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   const [isPurchaseSuccess, setIsPurchaseSuccess] = useState(false);
 
-  const item = items.find((i) => i.id === itemId);
+  const item = items.find((i) => i.product_id === Number(itemId));
 
   if (!item) {
     return (
@@ -55,16 +55,7 @@ const ItemDetails: React.FC = () => {
     );
   }
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
-  };
-
-  const canPurchase = user && user.id !== item.sellerId && user.balance >= item.price;
+  const canPurchase = user && user.account_id !== item.creator_id && user.balance >= item.price;
 
   const handlePurchase = () => {
     if (!user) {
@@ -72,7 +63,7 @@ const ItemDetails: React.FC = () => {
       return;
     }
 
-    if (user.id === item.sellerId) {
+    if (user.account_id === item.creator_id) {
       setError("You cannot purchase your own item");
       return;
     }
@@ -82,13 +73,19 @@ const ItemDetails: React.FC = () => {
       return;
     }
 
-    const success = purchaseItem(item.id);
+    const success = purchaseItem(item.product_id);
     if (success) {
       setIsPurchaseSuccess(true);
     } else {
       setError("Failed to complete purchase. Please try again.");
     }
     setIsConfirmDialogOpen(false);
+  };
+
+  // Get creator's email to display as seller
+  const getSellerEmail = () => {
+    // In a real app, we would fetch this from the backend
+    return "seller@example.com";
   };
 
   return (
@@ -116,12 +113,8 @@ const ItemDetails: React.FC = () => {
         )}
 
         <div className="grid md:grid-cols-2 gap-8">
-          <div className="bg-muted rounded-lg overflow-hidden">
-            <img
-              src={item.image}
-              alt={item.name}
-              className="w-full h-full object-cover"
-            />
+          <div className="bg-muted rounded-lg overflow-hidden flex items-center justify-center">
+            <Package className="h-32 w-32 text-muted-foreground" />
           </div>
           <Card>
             <CardHeader>
@@ -129,7 +122,7 @@ const ItemDetails: React.FC = () => {
                 <div>
                   <CardTitle className="text-2xl font-bold">{item.name}</CardTitle>
                   <div className="text-sm text-muted-foreground mt-1">
-                    Seller: {item.sellerName}
+                    Seller ID: {item.creator_id}
                   </div>
                 </div>
                 <Badge className="text-lg px-3 py-1">${item.price.toFixed(2)}</Badge>
@@ -142,7 +135,7 @@ const ItemDetails: React.FC = () => {
               </div>
               <div className="flex items-center text-sm text-muted-foreground">
                 <Clock className="h-4 w-4 mr-1" />
-                <span>Listed on {formatDate(item.createdAt)}</span>
+                <span>Listed item</span>
               </div>
             </CardContent>
             <CardFooter>

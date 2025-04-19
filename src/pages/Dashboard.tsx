@@ -52,7 +52,7 @@ const Dashboard: React.FC = () => {
       <Navbar />
       <div className="container mx-auto px-4 py-10">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Welcome, {user?.username}!</h1>
+          <h1 className="text-3xl font-bold mb-2">Welcome, {user?.email.split('@')[0]}!</h1>
           <p className="text-muted-foreground">Manage your items and transactions</p>
         </div>
 
@@ -173,14 +173,14 @@ const Dashboard: React.FC = () => {
               {purchasedItems.length > 0 ? (
                 <div className="space-y-4">
                   {purchasedItems.slice(0, 5).map((item) => (
-                    <div key={item.id} className="flex items-center gap-4">
+                    <div key={item.product_id} className="flex items-center gap-4">
                       <div className="w-10 h-10 rounded bg-muted flex items-center justify-center">
                         <PackageCheck className="h-5 w-5 text-muted-foreground" />
                       </div>
                       <div className="flex-1">
                         <div className="font-medium">{item.name}</div>
                         <div className="text-sm text-muted-foreground">
-                          ${item.price.toFixed(2)} • From: {item.sellerName}
+                          ${item.price.toFixed(2)}
                         </div>
                       </div>
                     </div>
@@ -207,7 +207,7 @@ const Dashboard: React.FC = () => {
               {myItems.length > 0 ? (
                 <div className="space-y-4">
                   {myItems.slice(0, 5).map((item) => (
-                    <div key={item.id} className="flex items-center gap-4">
+                    <div key={item.product_id} className="flex items-center gap-4">
                       <div className="w-10 h-10 rounded bg-muted flex items-center justify-center">
                         <Package className="h-5 w-5 text-muted-foreground" />
                       </div>
