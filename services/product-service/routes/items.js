@@ -4,167 +4,107 @@ const router = express.Router();
 const auth = require('../middleware/auth');
 const db = require('../config/db');
 
-// Get all items for marketplace
+// Get all available products
 router.get('/', async (req, res) => {
   try {
-    const items = await db.query(`
-      SELECT i.*, u.username as seller_name 
-      FROM items i 
-      JOIN users u ON i.seller_id = u.id 
-      WHERE i.is_sold = false
+    const products = await db.query(`
+      SELECT p.*, a.email as creator_email 
+      FROM PRODUCT p 
+      JOIN ACCOUNT a ON p.creator_id = a.account_id 
+      WHERE p.on_sale = true
     `);
     
-    res.json(items.rows);
+    res.json(products.rows);
   } catch (err) {
     console.error(err.message);
     res.status(500).json({ message: 'Server error' });
   }
 });
 
-// Get single item by id
+// Get single product
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     
-    const item = await db.query(`
-      SELECT i.*, u.username as seller_name 
-      FROM items i 
-      JOIN users u ON i.seller_id = u.id 
-      WHERE i.id = $1
+    const product = await db.query(`
+      SELECT p.*, a.email as creator_email 
+      FROM PRODUCT p 
+      JOIN ACCOUNT a ON p.creator_id = a.account_id 
+      WHERE p.product_id = $1
     `, [id]);
     
-    if (item.rows.length === 0) {
-      return res.status(404).json({ message: 'Item not found' });
+    if (product.rows.length === 0) {
+      return res.status(404).json({ message: 'Product not found' });
     }
     
-    res.json(item.rows[0]);
+    res.json(product.rows[0]);
   } catch (err) {
     console.error(err.message);
     res.status(500).json({ message: 'Server error' });
   }
 });
 
-// Create a new item (auth required)
+// Create a new product
 router.post('/', auth, async (req, res) => {
   try {
     const { name, description, price } = req.body;
-    const sellerId = req.user.id;
+    const creatorId = req.user.id;
     
-    const newItem = await db.query(
-      'INSERT INTO items (name, description, price, seller_id) VALUES ($1, $2, $3, $4) RETURNING *',
-      [name, description, price, sellerId]
+    const newProduct = await db.query(
+      'INSERT INTO PRODUCT (name, description, price, on_sale, creator_id) VALUES ($1, $2, $3, true, $4) RETURNING *',
+      [name, description, price, creatorId]
     );
     
-    // Get seller name for response
-    const seller = await db.query('SELECT username FROM users WHERE id = $1', [sellerId]);
-    
-    const responseItem = {
-      ...newItem.rows[0],
-      seller_name: seller.rows[0].username
-    };
-    
-    res.status(201).json(responseItem);
+    res.status(201).json(newProduct.rows[0]);
   } catch (err) {
     console.error(err.message);
     res.status(500).json({ message: 'Server error' });
   }
 });
 
-// Update an item (auth required + must be owner)
+// Update product
 router.put('/:id', auth, async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, description, price } = req.body;
+    const { name, description, price, on_sale } = req.body;
     
-    // Check if item exists and user is owner
-    const itemCheck = await db.query('SELECT * FROM items WHERE id = $1', [id]);
-    
-    if (itemCheck.rows.length === 0) {
-      return res.status(404).json({ message: 'Item not found' });
-    }
-    
-    if (itemCheck.rows[0].seller_id !== req.user.id) {
-      return res.status(403).json({ message: 'Not authorized to update this item' });
-    }
-    
-    // Update item
-    const updatedItem = await db.query(
-      'UPDATE items SET name = $1, description = $2, price = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4 RETURNING *',
-      [name, description, price, id]
+    // Check if product exists and user is creator
+    const productCheck = await db.query(
+      'SELECT * FROM PRODUCT WHERE product_id = $1',
+      [id]
     );
     
-    // Get seller name for response
-    const seller = await db.query('SELECT username FROM users WHERE id = $1', [req.user.id]);
-    
-    const responseItem = {
-      ...updatedItem.rows[0],
-      seller_name: seller.rows[0].username
-    };
-    
-    res.json(responseItem);
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// Delete an item (auth required + must be owner)
-router.delete('/:id', auth, async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    // Check if item exists and user is owner
-    const itemCheck = await db.query('SELECT * FROM items WHERE id = $1', [id]);
-    
-    if (itemCheck.rows.length === 0) {
-      return res.status(404).json({ message: 'Item not found' });
+    if (productCheck.rows.length === 0) {
+      return res.status(404).json({ message: 'Product not found' });
     }
     
-    if (itemCheck.rows[0].seller_id !== req.user.id) {
-      return res.status(403).json({ message: 'Not authorized to delete this item' });
+    if (productCheck.rows[0].creator_id !== req.user.id) {
+      return res.status(403).json({ message: 'Not authorized' });
     }
     
-    // Delete item
-    await db.query('DELETE FROM items WHERE id = $1', [id]);
+    const updatedProduct = await db.query(
+      'UPDATE PRODUCT SET name = $1, description = $2, price = $3, on_sale = $4 WHERE product_id = $5 RETURNING *',
+      [name, description, price, on_sale, id]
+    );
     
-    res.json({ message: 'Item removed' });
+    res.json(updatedProduct.rows[0]);
   } catch (err) {
     console.error(err.message);
     res.status(500).json({ message: 'Server error' });
   }
 });
 
-// Search items
-router.get('/search/:query', async (req, res) => {
-  try {
-    const { query } = req.params;
-    
-    const items = await db.query(`
-      SELECT i.*, u.username as seller_name 
-      FROM items i 
-      JOIN users u ON i.seller_id = u.id 
-      WHERE (i.name ILIKE $1 OR i.description ILIKE $1) AND i.is_sold = false
-    `, [`%${query}%`]);
-    
-    res.json(items.rows);
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// Get user's items
+// Get user's products
 router.get('/user/:userId', auth, async (req, res) => {
   try {
     const { userId } = req.params;
     
-    // Validate if the requester is the owner or has rights
-    if (userId !== req.user.id) {
-      // You could add permission check here
-    }
+    const products = await db.query(
+      'SELECT * FROM PRODUCT WHERE creator_id = $1',
+      [userId]
+    );
     
-    const items = await db.query('SELECT * FROM items WHERE seller_id = $1', [userId]);
-    res.json(items.rows);
+    res.json(products.rows);
   } catch (err) {
     console.error(err.message);
     res.status(500).json({ message: 'Server error' });

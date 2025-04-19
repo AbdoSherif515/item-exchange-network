@@ -3,46 +3,49 @@
 CREATE EXTENSION IF NOT EXISTS citus;
 CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
 
--- Users table (distributed by id)
-CREATE TABLE IF NOT EXISTS users (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  username VARCHAR(100) NOT NULL UNIQUE,
+-- Account table (distributed by account_id)
+CREATE TABLE ACCOUNT (
+  account_id SERIAL PRIMARY KEY,
   email VARCHAR(255) NOT NULL UNIQUE,
-  password VARCHAR(255) NOT NULL,
-  balance NUMERIC(10, 2) DEFAULT 100.00,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  password_hash VARCHAR(255) NOT NULL,
+  balance INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Items table (distributed by seller_id)
-CREATE TABLE IF NOT EXISTS items (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+-- Product table (distributed by creator_id)
+CREATE TABLE PRODUCT (
+  product_id SERIAL PRIMARY KEY,
   name VARCHAR(255) NOT NULL,
-  description TEXT,
-  price NUMERIC(10, 2) NOT NULL,
-  seller_id UUID NOT NULL REFERENCES users(id),
-  is_sold BOOLEAN DEFAULT FALSE,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  description TEXT NOT NULL,
+  price INTEGER NOT NULL CHECK (price >= 0),
+  on_sale BOOLEAN NOT NULL DEFAULT true,
+  creator_id INTEGER NOT NULL REFERENCES ACCOUNT(account_id),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Transactions table (distributed by created_at)
-CREATE TABLE IF NOT EXISTS transactions (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  item_id UUID NOT NULL REFERENCES items(id),
-  seller_id UUID NOT NULL REFERENCES users(id),
-  buyer_id UUID NOT NULL REFERENCES users(id),
-  price NUMERIC(10, 2) NOT NULL,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+-- Product transfer table (distributed by buyer_id)
+CREATE TABLE PRODUCT_TRANSFER (
+  buyer_id INTEGER NOT NULL REFERENCES ACCOUNT(account_id),
+  product_id INTEGER NOT NULL REFERENCES PRODUCT(product_id),
+  date_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (buyer_id, product_id)
 );
 
--- Distribute tables across shards
-SELECT create_distributed_table('users', 'id');
-SELECT create_distributed_table('items', 'seller_id');
-SELECT create_distributed_table('transactions', 'seller_id');
+-- Money transaction table (distributed by account_id)
+CREATE TABLE MONEY_TRANSACTION (
+  account_id INTEGER NOT NULL REFERENCES ACCOUNT(account_id),
+  amount INTEGER NOT NULL,
+  timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (timestamp, account_id)
+);
 
--- Create indexes
-CREATE INDEX IF NOT EXISTS idx_items_seller ON items(seller_id);
-CREATE INDEX IF NOT EXISTS idx_transactions_seller ON transactions(seller_id);
-CREATE INDEX IF NOT EXISTS idx_transactions_buyer ON transactions(buyer_id);
-CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(created_at);
+-- Distribute tables
+SELECT create_distributed_table('ACCOUNT', 'account_id');
+SELECT create_distributed_table('PRODUCT', 'creator_id');
+SELECT create_distributed_table('PRODUCT_TRANSFER', 'buyer_id');
+SELECT create_distributed_table('MONEY_TRANSACTION', 'account_id');
+
+-- Create indexes for better query performance
+CREATE INDEX idx_product_creator ON PRODUCT(creator_id);
+CREATE INDEX idx_transfer_product ON PRODUCT_TRANSFER(product_id);
+CREATE INDEX idx_transaction_timestamp ON MONEY_TRANSACTION(timestamp);

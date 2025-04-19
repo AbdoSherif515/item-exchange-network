@@ -4,47 +4,46 @@ const router = express.Router();
 const auth = require('../middleware/auth');
 const db = require('../config/db');
 
-// Get all user's purchases
+// Get user's purchases
 router.get('/purchases', auth, async (req, res) => {
   try {
-    const transactions = await db.query(`
-      SELECT t.*, i.name as item_name, u.username as seller_name 
-      FROM transactions t 
-      JOIN items i ON t.item_id = i.id 
-      JOIN users u ON t.seller_id = u.id 
-      WHERE t.buyer_id = $1 
-      ORDER BY t.created_at DESC
+    const transfers = await db.query(`
+      SELECT pt.*, p.name, p.price, a.email as seller_email
+      FROM PRODUCT_TRANSFER pt 
+      JOIN PRODUCT p ON pt.product_id = p.product_id
+      JOIN ACCOUNT a ON p.creator_id = a.account_id
+      WHERE pt.buyer_id = $1 
+      ORDER BY pt.date_time DESC
     `, [req.user.id]);
     
-    res.json(transactions.rows);
+    res.json(transfers.rows);
   } catch (err) {
     console.error(err.message);
     res.status(500).json({ message: 'Server error' });
   }
 });
 
-// Get all user's sales
+// Get user's sales
 router.get('/sales', auth, async (req, res) => {
   try {
-    const transactions = await db.query(`
-      SELECT t.*, i.name as item_name, u.username as buyer_name 
-      FROM transactions t 
-      JOIN items i ON t.item_id = i.id 
-      JOIN users u ON t.buyer_id = u.id 
-      WHERE t.seller_id = $1 
-      ORDER BY t.created_at DESC
+    const sales = await db.query(`
+      SELECT pt.*, p.name, p.price, a.email as buyer_email
+      FROM PRODUCT_TRANSFER pt 
+      JOIN PRODUCT p ON pt.product_id = p.product_id
+      JOIN ACCOUNT a ON pt.buyer_id = a.account_id
+      WHERE p.creator_id = $1 
+      ORDER BY pt.date_time DESC
     `, [req.user.id]);
     
-    res.json(transactions.rows);
+    res.json(sales.rows);
   } catch (err) {
     console.error(err.message);
     res.status(500).json({ message: 'Server error' });
   }
 });
 
-// Purchase an item
+// Purchase a product
 router.post('/purchase/:id', auth, async (req, res) => {
-  // Get client for transaction
   const client = await db.getClient();
   
   try {
@@ -53,57 +52,75 @@ router.post('/purchase/:id', auth, async (req, res) => {
     const { id } = req.params;
     const buyerId = req.user.id;
     
-    // Get the item with seller info
-    const itemResult = await client.query(`
-      SELECT i.*, u.balance as seller_balance 
-      FROM items i 
-      JOIN users u ON i.seller_id = u.id 
-      WHERE i.id = $1 AND i.is_sold = false
+    // Get the product with creator info
+    const productResult = await client.query(`
+      SELECT p.*, a.balance as creator_balance 
+      FROM PRODUCT p 
+      JOIN ACCOUNT a ON p.creator_id = a.account_id 
+      WHERE p.product_id = $1 AND p.on_sale = true
     `, [id]);
     
-    if (itemResult.rows.length === 0) {
+    if (productResult.rows.length === 0) {
       await client.query('ROLLBACK');
-      return res.status(404).json({ message: 'Item not found or already sold' });
+      return res.status(404).json({ message: 'Product not found or not for sale' });
     }
     
-    const item = itemResult.rows[0];
+    const product = productResult.rows[0];
     
-    // Check if buyer is not the seller
-    if (item.seller_id === buyerId) {
+    // Check if buyer is not the creator
+    if (product.creator_id === buyerId) {
       await client.query('ROLLBACK');
-      return res.status(400).json({ message: 'You cannot buy your own item' });
+      return res.status(400).json({ message: 'Cannot buy your own product' });
     }
     
     // Get buyer's balance
-    const buyerResult = await client.query('SELECT balance FROM users WHERE id = $1', [buyerId]);
-    const buyerBalance = buyerResult.rows[0].balance;
+    const buyerResult = await client.query(
+      'SELECT balance FROM ACCOUNT WHERE account_id = $1',
+      [buyerId]
+    );
     
     // Check if buyer has enough balance
-    if (buyerBalance < item.price) {
+    if (buyerResult.rows[0].balance < product.price) {
       await client.query('ROLLBACK');
       return res.status(400).json({ message: 'Insufficient funds' });
     }
     
-    // Update item to sold
-    await client.query('UPDATE items SET is_sold = true WHERE id = $1', [id]);
+    // Update product to not for sale
+    await client.query(
+      'UPDATE PRODUCT SET on_sale = false WHERE product_id = $1',
+      [id]
+    );
+    
+    // Create transfer record
+    await client.query(
+      'INSERT INTO PRODUCT_TRANSFER (buyer_id, product_id) VALUES ($1, $2)',
+      [buyerId, id]
+    );
     
     // Deduct from buyer's balance
-    await client.query('UPDATE users SET balance = balance - $1 WHERE id = $2', [item.price, buyerId]);
+    await client.query(
+      'UPDATE ACCOUNT SET balance = balance - $1 WHERE account_id = $2',
+      [product.price, buyerId]
+    );
     
-    // Add to seller's balance
-    await client.query('UPDATE users SET balance = balance + $1 WHERE id = $2', [item.price, item.seller_id]);
+    // Add to creator's balance
+    await client.query(
+      'UPDATE ACCOUNT SET balance = balance + $1 WHERE account_id = $2',
+      [product.price, product.creator_id]
+    );
     
-    // Create transaction record
-    const transactionResult = await client.query(
-      'INSERT INTO transactions (item_id, seller_id, buyer_id, price) VALUES ($1, $2, $3, $4) RETURNING *',
-      [id, item.seller_id, buyerId, item.price]
+    // Record money transactions
+    await client.query(
+      'INSERT INTO MONEY_TRANSACTION (account_id, amount) VALUES ($1, $2), ($3, $4)',
+      [buyerId, -product.price, product.creator_id, product.price]
     );
     
     await client.query('COMMIT');
     
     res.status(201).json({
       message: 'Purchase successful',
-      transaction: transactionResult.rows[0]
+      productId: id,
+      price: product.price
     });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -114,43 +131,18 @@ router.post('/purchase/:id', auth, async (req, res) => {
   }
 });
 
-// Get transaction reports
-router.get('/reports', auth, async (req, res) => {
+// Get transaction history
+router.get('/history', auth, async (req, res) => {
   try {
-    // Get summary of user's transactions
-    const summary = await db.query(`
-      SELECT 
-        (SELECT COUNT(*) FROM transactions WHERE buyer_id = $1) as total_purchases,
-        (SELECT COALESCE(SUM(price), 0) FROM transactions WHERE buyer_id = $1) as total_spent,
-        (SELECT COUNT(*) FROM transactions WHERE seller_id = $1) as total_sales,
-        (SELECT COALESCE(SUM(price), 0) FROM transactions WHERE seller_id = $1) as total_earned
+    const transactions = await db.query(`
+      SELECT mt.*, a.email
+      FROM MONEY_TRANSACTION mt
+      JOIN ACCOUNT a ON mt.account_id = a.account_id
+      WHERE mt.account_id = $1
+      ORDER BY mt.timestamp DESC
     `, [req.user.id]);
     
-    // Get recent transactions
-    const recentTransactions = await db.query(`
-      (SELECT t.id, t.created_at, i.name as item_name, t.price, 'purchase' as type, u.username as other_party
-       FROM transactions t 
-       JOIN items i ON t.item_id = i.id 
-       JOIN users u ON t.seller_id = u.id
-       WHERE t.buyer_id = $1
-       ORDER BY t.created_at DESC
-       LIMIT 5)
-      UNION
-      (SELECT t.id, t.created_at, i.name as item_name, t.price, 'sale' as type, u.username as other_party
-       FROM transactions t 
-       JOIN items i ON t.item_id = i.id 
-       JOIN users u ON t.buyer_id = u.id
-       WHERE t.seller_id = $1
-       ORDER BY t.created_at DESC
-       LIMIT 5)
-      ORDER BY created_at DESC
-      LIMIT 10
-    `, [req.user.id]);
-    
-    res.json({
-      summary: summary.rows[0],
-      recentTransactions: recentTransactions.rows
-    });
+    res.json(transactions.rows);
   } catch (err) {
     console.error(err.message);
     res.status(500).json({ message: 'Server error' });
