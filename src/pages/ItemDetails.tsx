@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useItems } from "@/context/ItemsContext";
@@ -8,7 +7,7 @@ import Navbar from "@/components/Navbar";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, ShoppingCart, ArrowLeft, Clock } from "lucide-react";
+import { AlertCircle, ShoppingCart, ArrowLeft, Clock, Package } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Dialog,
@@ -82,9 +81,7 @@ const ItemDetails: React.FC = () => {
     setIsConfirmDialogOpen(false);
   };
 
-  // Get creator's email to display as seller
   const getSellerEmail = () => {
-    // In a real app, we would fetch this from the backend
     return "seller@example.com";
   };
 
